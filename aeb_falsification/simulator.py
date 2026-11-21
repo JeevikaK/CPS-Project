@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from math import ceil, inf
+from dataclasses import asdict
 
 import numpy as np
 
@@ -14,11 +15,11 @@ from .models import (
     SimulationResult,
     Trace,
 )
-from .monitor import classify_failure, safety_metrics
+from .monitor import classify_failure, safety_metrics, violated_properties
 
 
 def _friction_factor(road_friction: float) -> float:
-    return float(np.clip(road_friction / 1.0, 0.35, 1.0))
+    return min(road_friction, 1.0)
 
 
 def simulate(
@@ -27,19 +28,34 @@ def simulate(
 ) -> SimulationResult:
     """Run one deterministic closed-loop simulation."""
     config = config or SimulationConfig()
+    numeric_values = [value for value in asdict(config).values()] + [
+        value for key, value in asdict(scenario).items() if key != "seed"
+    ]
+    if not all(np.isfinite(value) for value in numeric_values):
+        raise ValueError("scenario and configuration values must be finite")
+    if config.distance_scale <= 0 or config.ttc_scale <= 0:
+        raise ValueError("robustness reference scales must be positive")
+    if not (config.emergency_braking <= config.normal_braking < 0):
+        raise ValueError("emergency braking must be at least as strong as normal braking")
+    if not (0 <= config.emergency_ttc <= config.warning_ttc):
+        raise ValueError("invalid TTC thresholds")
+    if not (0 <= config.collision_distance < config.minimum_separation):
+        raise ValueError("invalid distance thresholds")
+    if config.maximum_acceleration < 0 or config.target_speed < 0:
+        raise ValueError("target speed and maximum acceleration must be non-negative")
     if config.dt <= 0.0 or config.horizon <= 0.0:
         raise ValueError("dt and horizon must be positive")
-    if scenario.pedestrian_distance <= 0.0:
+    if scenario.pedestrian_distance <= config.collision_distance:
         raise ValueError("pedestrian_distance must be positive")
     if scenario.ego_speed < 0.0 or scenario.pedestrian_speed < 0.0:
         raise ValueError("initial speeds must be non-negative")
     if scenario.road_friction <= 0.0:
         raise ValueError("road_friction must be positive")
-    if scenario.sensor_delay < 0.0 or scenario.sensor_noise_std < 0.0:
+    if not 0 <= scenario.sensor_delay <= config.maximum_sensor_delay or scenario.sensor_noise_std < 0.0:
         raise ValueError("sensor delay and noise must be non-negative")
 
-    steps = int(round(config.horizon / config.dt))
-    time = np.arange(steps + 1, dtype=float) * config.dt
+    steps = int(ceil(config.horizon / config.dt))
+    time = np.minimum(np.arange(steps + 1, dtype=float) * config.dt, config.horizon)
     ego_position = np.zeros(steps + 1, dtype=float)
     ego_speed = np.zeros(steps + 1, dtype=float)
     pedestrian_position = np.zeros(steps + 1, dtype=float)
@@ -52,7 +68,6 @@ def simulate(
     ego_speed[0] = scenario.ego_speed
     pedestrian_position[0] = scenario.pedestrian_distance
     rng = np.random.default_rng(scenario.seed)
-    delay_steps = int(round(scenario.sensor_delay / config.dt))
     true_history: list[float] = []
     friction = _friction_factor(scenario.road_friction)
     collision_detected = False
@@ -71,9 +86,9 @@ def simulate(
     for i in range(steps + 1):
         true_distance[i] = pedestrian_position[i] - ego_position[i]
         true_history.append(float(true_distance[i]))
-        delayed_index = max(0, i - delay_steps)
+        delayed_distance = float(np.interp(max(0.0, time[i] - scenario.sensor_delay), time[:i + 1], true_history))
         noise = rng.normal(0.0, scenario.sensor_noise_std)
-        measured_distance[i] = max(0.0, true_history[delayed_index] + noise)
+        measured_distance[i] = max(0.0, delayed_distance + noise)
         ttc[i] = compute_ttc(
             true_distance[i], ego_speed[i], scenario.pedestrian_speed
         )
@@ -90,29 +105,48 @@ def simulate(
         if i == steps:
             break
 
-        ego_speed[i + 1] = max(0.0, ego_speed[i] + command * config.dt)
-        ego_position[i + 1] = ego_position[i] + ego_speed[i] * config.dt
-        pedestrian_position[i + 1] = (
-            pedestrian_position[i] + scenario.pedestrian_speed * config.dt
-        )
+        duration = time[i + 1] - time[i]
+        # Hold acceleration over the sample, integrating only until speed is zero.
+        moving_duration = min(duration, -ego_speed[i] / command) if command < 0 else duration
 
-        # Stop the physical evolution at first contact. Keeping the remaining
-        # trace samples at contact makes fixed-budget experiments easier to
-        # compare without allowing the vehicles to pass through each other.
-        if pedestrian_position[i + 1] - ego_position[i + 1] <= config.collision_distance:
+        def gap_at(elapsed):
+            moving = min(elapsed, moving_duration)
+            travel = ego_speed[i] * moving + 0.5 * command * moving ** 2
+            return true_distance[i] + scenario.pedestrian_speed * elapsed - travel
+
+        # Check closest approach as well as the endpoint: a moving pedestrian
+        # can pull away again after the ego vehicle has slowed within this step.
+        candidates = [0.0, duration, moving_duration]
+        if command != 0:
+            turning = (scenario.pedestrian_speed - ego_speed[i]) / command
+            if 0 < turning < moving_duration:
+                candidates.append(turning)
+        closest_time = min(candidates, key=gap_at)
+        if gap_at(closest_time) <= config.collision_distance:
+            low, high = 0.0, closest_time
+            for _ in range(60):
+                middle = (low + high) / 2
+                if gap_at(middle) > config.collision_distance:
+                    low = middle
+                else:
+                    high = middle
+            contact_time = high
+            impact_speed = max(0.0, float(ego_speed[i] + command * min(contact_time, moving_duration)))
             collision_detected = True
-            impact_speed = float(ego_speed[i + 1])
-            ego_position[i + 1] = pedestrian_position[i + 1] - config.collision_distance
-            for j in range(i + 1, steps + 1):
-                pedestrian_position[j] = pedestrian_position[i + 1]
-                ego_position[j] = ego_position[i + 1]
-                ego_speed[j] = 0.0
-                true_distance[j] = config.collision_distance
-                measured_distance[j] = config.collision_distance
-                ttc[j] = 0.0
-                brake_command[j] = config.emergency_braking * friction
-                controller_mode[j] = "emergency_braking"
+            contact_position = pedestrian_position[i] + scenario.pedestrian_speed * contact_time
+            # Terminal contact is padded to retain the existing fixed-size interface.
+            pedestrian_position[i + 1:] = contact_position
+            ego_position[i + 1:] = contact_position - config.collision_distance
+            ego_speed[i + 1:] = 0.0
+            true_distance[i + 1:] = config.collision_distance
+            measured_distance[i + 1:] = config.collision_distance
+            ttc[i + 1:] = 0.0
+            brake_command[i + 1:] = 0.0
+            controller_mode[i + 1:] = "terminal_collision"
             break
+        ego_speed[i + 1] = max(0.0, ego_speed[i] + command * duration)
+        ego_position[i + 1] = ego_position[i] + ego_speed[i] * moving_duration + 0.5 * command * moving_duration ** 2
+        pedestrian_position[i + 1] = pedestrian_position[i] + scenario.pedestrian_speed * duration
 
     collision = collision_detected or bool(np.any(true_distance <= config.collision_distance))
     trace = Trace(
@@ -148,4 +182,10 @@ def simulate(
         severity=severity,
         metrics=metrics,
         impact_speed=impact_speed,
+        operating_conditions=tuple(label for label, present in (
+            ("low_friction", scenario.road_friction < 0.6),
+            ("sensor_delay", scenario.sensor_delay > 0),
+            ("sensor_noise", scenario.sensor_noise_std > 0),
+        ) if present),
+        violated_properties=violated_properties(trace, metrics),
     )

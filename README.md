@@ -13,4 +13,6 @@ python3 -m aeb_falsification.diversity_demo
 python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
 ```
 
-The current implementation uses a deterministic one-dimensional simulator. CARLA integration will be added through the same simulation/result interface.
+The current scope uses a reproducible one-dimensional simulator; CARLA is not required. See `aeb_falsification/README.md` for model assumptions, safety definitions, and validation.
+
+The saved experiment results were rerun after the environment corrections with 100 simulations per method and seeds 0–9. Previous results are preserved in `experiment_results/before_environment_fixes/`.

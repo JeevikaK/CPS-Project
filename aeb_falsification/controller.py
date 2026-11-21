@@ -30,8 +30,8 @@ def controller_step(
         return config.emergency_braking * config.friction_factor, ControllerMode.EMERGENCY_BRAKING
 
     if ttc <= config.warning_ttc:
-        return config.normal_braking, ControllerMode.WARNING
+        return config.normal_braking * config.friction_factor, ControllerMode.WARNING
 
     speed_error = config.target_speed - speed
     acceleration = min(config.maximum_acceleration, max(config.normal_braking, 0.8 * speed_error))
-    return acceleration, ControllerMode.CRUISING
+    return acceleration * config.friction_factor if acceleration < 0 else acceleration, ControllerMode.CRUISING

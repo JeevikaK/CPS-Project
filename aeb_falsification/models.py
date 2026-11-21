@@ -45,6 +45,9 @@ class SimulationConfig:
     normal_braking: float = -4.0
     emergency_braking: float = -8.0
     maximum_sensor_delay: float = 0.50
+    # Reference scales make the aggregate robustness dimensionless.
+    distance_scale: float = 1.0
+    ttc_scale: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,8 @@ class SimulationResult:
     severity: float
     metrics: SafetyMetrics
     impact_speed: float
+    operating_conditions: tuple[str, ...] = ()
+    violated_properties: tuple[str, ...] = ()
 
     @property
     def search_score(self) -> float:

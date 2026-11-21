@@ -93,7 +93,7 @@ TTC shortfall and must not be interpreted as physical impact severity.
 ## Validation
 
 Run `MPLBACKEND=Agg python3 -m unittest discover -s tests -v`.
-The suite contains 22 tests, including analytic stopping distance, analytic contact
+The suite contains 30 tests, including analytic stopping distance, analytic contact
 speed at three time steps, a known safe encounter, adverse friction and delay,
 TTC-only violations, threshold equality, and zero-noise comparisons at 0.05 and
 0.025 s. These checks validate the intended simplified implementation, not a
@@ -102,6 +102,7 @@ real vehicle model.
 The files `experiment_results/summary.csv` and `summary.png` were regenerated after
 these corrections with budget 100 and seeds 0–9. Original outputs are preserved in
 `experiment_results/before_environment_fixes/`. Coverage still includes safe cells;
-the robustness baseline is still local mutation search, not CMA-ES. Failure labels
+those saved runs used local mutation search, not the new CMA-ES baseline. Failure labels
 also changed, so old and new coverage counts are not directly comparable. Search
-algorithms, archive definitions, and CMA-ES implementation remain pending work.
+archive guidance and archive definitions remain pending work. See the root README
+for CMA-ES setup, objective, budget handling, and a separate experiment command.

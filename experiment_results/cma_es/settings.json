@@ -1,0 +1,71 @@
+{
+  "budget_per_method_per_seed": 100,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "total_simulations": 3000,
+  "simulation": {
+    "dt": 0.05,
+    "horizon": 10.0,
+    "target_speed": 15.0,
+    "warning_ttc": 3.0,
+    "emergency_ttc": 1.5,
+    "minimum_separation": 2.0,
+    "collision_distance": 0.0,
+    "maximum_acceleration": 2.0,
+    "normal_braking": -4.0,
+    "emergency_braking": -8.0,
+    "maximum_sensor_delay": 0.5,
+    "distance_scale": 1.0,
+    "ttc_scale": 1.0
+  },
+  "bounds": {
+    "ego_speed": [
+      8.0,
+      20.0
+    ],
+    "pedestrian_distance": [
+      8.0,
+      40.0
+    ],
+    "pedestrian_speed": [
+      0.0,
+      2.0
+    ],
+    "road_friction": [
+      0.35,
+      1.0
+    ],
+    "sensor_delay": [
+      0.0,
+      0.5
+    ],
+    "sensor_noise_std": [
+      0.0,
+      1.0
+    ]
+  },
+  "versions": {
+    "cma": "4.6.0",
+    "numpy": "2.4.2",
+    "matplotlib": "3.10.8"
+  },
+  "coverage": "unique failure-only archive signatures: outcome, severity bin, friction bin, sensor bin",
+  "impact": "maximum ego impact speed per run in km/h; zero if no collision",
+  "first_failure_evaluation": "1-based; -1 if none",
+  "objective": "overall robustness before collision; -10-impact_speed (m/s) after collision",
+  "limitations": [
+    "categories are not proven causal modes",
+    "diversity method uses original local/global search, not CMA-ES",
+    "internal diversity archive still includes safe cells; reporting excludes them"
+  ]
+}

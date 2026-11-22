@@ -23,7 +23,11 @@ python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
 
 The current scope uses a reproducible one-dimensional simulator; CARLA is not required. See `aeb_falsification/README.md` for model assumptions, safety definitions, and validation.
 
-The saved experiment results were rerun after the environment corrections with 100 simulations per method and seeds 0–9. Previous results are preserved in `experiment_results/before_environment_fixes/`.
+The latest results are in `experiment_results/foundation_fixes/` (preliminary). Runs go to
+`experiment_results/latest/` (git-ignored) unless `--output-dir` is given. Saved failures can be
+checked with `python3 -m aeb_falsification.replay <folder>/failures.json`.
+
+The older top-level experiment results were rerun after the environment corrections with 100 simulations per method and seeds 0–9. Previous results are preserved in `experiment_results/before_environment_fixes/`.
 
 
 ## CMA-ES baseline
@@ -52,4 +56,4 @@ MPLBACKEND=Agg python -m aeb_falsification.experiment_runner --budget 100 --seed
 Implementation follows the [pycma ask/tell interface](https://cma-es.github.io/apidocs-pycma/cma.evolution_strategy.CMAEvolutionStrategy.html).
 
 
-The corrected 100-budget, 10-seed comparison is in `experiment_results/cma_es/`. Coverage excludes safe outcomes, impact speed is in km/h, and plot dots show individual runs. `settings.json` documents settings and metric definitions. Earlier top-level results remain historical.
+The 100-budget, 10-seed comparison from before the foundation fixes is in `experiment_results/cma_es/`; it used the old controller, TTC limit, scenario space and archive categories. Coverage excludes safe outcomes, impact speed is in km/h, and plot dots show individual runs. `settings.json` documents settings and metric definitions. Earlier top-level results remain historical.

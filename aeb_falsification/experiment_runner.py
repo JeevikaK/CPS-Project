@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
+from importlib.metadata import version
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -11,7 +13,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .archive import FailureArchive
+from .models import SimulationConfig
 from .search import diversity_aware_search, random_search, robustness_guided_search
+from .search.common import BOUNDS, PARAMETER_NAMES
+
+DEFAULT_OUTPUT_DIR = Path("experiment_results/latest")
 
 
 @dataclass(frozen=True)
@@ -46,7 +52,7 @@ def _run_method(method: str, budget: int, seed: int):
 def run_experiment(
     budget: int = 100,
     seeds: tuple[int, ...] = tuple(range(10)),
-    output_dir: str | Path = "experiment_results",
+    output_dir: str | Path = DEFAULT_OUTPUT_DIR,
 ) -> list[ExperimentRow]:
     """Run equal-budget experiments and write machine-readable results."""
     if not seeds:
@@ -57,6 +63,8 @@ def run_experiment(
     output_path.mkdir(parents=True, exist_ok=True)
 
     rows: list[ExperimentRow] = []
+    failures: list[dict] = []
+    curves: list[dict] = []
     for seed in seeds:
         for method in ("random", "robustness_guided", "diversity_aware"):
             result = _run_method(method, budget, seed)
@@ -73,6 +81,18 @@ def run_experiment(
                     collisions += 1
                 if record.result.failure_type is not None:
                     violations += 1
+                curves.append({
+                    "method": method, "seed": seed, "evaluation": record.evaluation + 1,
+                    "failure_coverage": archive.coverage,
+                })
+            for entry in archive.entries():
+                failures.append({
+                    "method": method,
+                    "seed": seed,
+                    "category": asdict(entry.signature),
+                    "scenario": asdict(entry.scenario),
+                    "outcome": outcome(entry.result),
+                })
 
             best = result.best_record.result
             rows.append(
@@ -102,7 +122,61 @@ def run_experiment(
 
     _write_csv(rows, output_path / "summary.csv")
     _write_summary_plot(rows, output_path / "summary.png")
+    _write_curve(curves, budget, output_path)
+    simulation = asdict(SimulationConfig())
+    _write_json({"simulation": simulation, "failures": failures}, output_path / "failures.json")
+    _write_json({
+        "budget_per_method_per_seed": budget,
+        "seeds": list(seeds),
+        "simulation": simulation,
+        "bounds": dict(zip(PARAMETER_NAMES, BOUNDS.tolist())),
+        "versions": {name: version(name) for name in ("cma", "numpy", "matplotlib")},
+    }, output_path / "settings.json")
     return rows
+
+
+def outcome(result) -> dict:
+    """Values a replay must reproduce."""
+    return {
+        "failure_type": result.failure_type,
+        "impact_speed": result.impact_speed,
+        "min_distance": result.min_distance,
+        "min_ttc": result.min_ttc,
+        "search_score": result.search_score,
+        "violated_properties": list(result.violated_properties),
+    }
+
+
+def _write_json(data: dict, path: Path) -> None:
+    path.write_text(json.dumps(data, indent=1) + "\n")
+
+
+def _write_curve(curves: list[dict], budget: int, output_path: Path) -> None:
+    """Write mean failure coverage against simulations used (band = 1 SD)."""
+    with (output_path / "coverage_curve.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(curves[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(curves)
+    fig, axis = plt.subplots(figsize=(7, 4.5))
+    for method, label, color in (
+        ("random", "Random", "#377eb8"),
+        ("robustness_guided", "CMA-ES", "#e68613"),
+        ("diversity_aware", "Diversity-aware", "#36945d"),
+    ):
+        values = np.array([
+            row["failure_coverage"] for row in curves if row["method"] == method
+        ]).reshape(-1, budget)
+        mean, spread = values.mean(axis=0), values.std(axis=0)
+        x = np.arange(1, budget + 1)
+        axis.plot(x, mean, label=label, color=color)
+        axis.fill_between(x, mean - spread, mean + spread, color=color, alpha=.15)
+    axis.set_xlabel("Simulations used")
+    axis.set_ylabel("Distinct failure categories (mean, 1 SD band)")
+    axis.grid(alpha=.2)
+    axis.legend()
+    fig.tight_layout()
+    fig.savefig(output_path / "coverage_curve.png", dpi=180)
+    plt.close(fig)
 
 
 def _write_csv(rows: list[ExperimentRow], path: Path) -> None:
@@ -158,7 +232,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--budget", type=int, default=100)
     parser.add_argument("--seeds", type=int, default=10)
-    parser.add_argument("--output-dir", type=Path, default=Path("experiment_results"))
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
     rows = run_experiment(
         budget=args.budget,

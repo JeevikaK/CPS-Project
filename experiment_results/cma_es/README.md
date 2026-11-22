@@ -1,5 +1,7 @@
 # CMA-ES comparison
 
+> Historical: predates the controller, TTC, scenario-space and archive fixes. See `../foundation_fixes/`.
+
 100 simulations per method × 10 seeds × 3 methods = 3,000 simulations.
 
 | Method | Mean failure categories | Mean worst impact (km/h) | Mean collisions per 100 |

@@ -38,7 +38,14 @@ For the actual equal-budget comparison across seeds:
 python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
 ```
 
-This writes `experiment_results/summary.csv` and `experiment_results/summary.png`.
+This writes to `experiment_results/latest/` unless `--output-dir` is given:
+`summary.csv`/`.png`, `coverage_curve.csv`/`.png`, `settings.json`, and `failures.json`.
+
+Every saved failure can be re-simulated and checked, and trajectories exported:
+
+```bash
+python3 -m aeb_falsification.replay experiment_results/latest/failures.json --trajectories traj
+```
 
 
 ## Validated environment assumptions
@@ -52,8 +59,15 @@ The controller samples observations and holds acceleration between updates.
 Negative acceleration in every controller mode is multiplied by
 `min(road_friction, 1)`. Friction is a simplified braking multiplier rather than a
 validated tyre model. Motion uses constant-acceleration integration, with speed
-clamped at zero and no extra travel after stopping. The controller may resume
-acceleration if its conditions permit; braking is not latched.
+clamped at zero and no extra travel after stopping. Braking is latched: it holds
+until the vehicle is no longer closing and the gap is at least `resume_distance`
+(default 10 m). Without this, the vehicle crept into the 2 m limit even with
+perfect sensors on a dry road.
+
+Search covers only avoidable scenarios. `minimum_avoidable_distance` gives the
+smallest initial gap at which ideal full braking from t=0 meets every requirement;
+`vector_to_scenario` rescales the distance coordinate to start there (distance upper
+bound 80 m). A violation is therefore never forced by the initial conditions.
 
 Delayed distance is interpolated from the true history; before simulation start,
 the initial distance is held constant. Noise is independent Gaussian distance
@@ -75,7 +89,8 @@ Over the simulated horizon, the sampled monitors evaluate:
 - Collision avoidance: always `true_distance > collision_distance` (strict).
   Contact is a violation even though its distance robustness is exactly zero.
 - Minimum separation: always `true_distance >= minimum_separation` (default 2 m).
-- TTC safety: always `TTC >= emergency_ttc` (default 1.5 s). TTC is infinite when
+- TTC safety: always `TTC >= minimum_ttc` (default 1.0 s, below the controller's
+  1.5 s emergency trigger so correct braking is not a violation). TTC is infinite when
   the vehicle is not closing. This is a conservative safety requirement, separate
   from the controller's emergency trigger; braking activation does not excuse it.
 
@@ -93,16 +108,19 @@ TTC shortfall and must not be interpreted as physical impact severity.
 ## Validation
 
 Run `MPLBACKEND=Agg python3 -m unittest discover -s tests -v`.
-The suite contains 30 tests, including analytic stopping distance, analytic contact
+The suite contains 42 tests, including analytic stopping distance, analytic contact
 speed at three time steps, a known safe encounter, adverse friction and delay,
 TTC-only violations, threshold equality, and zero-noise comparisons at 0.05 and
 0.025 s. These checks validate the intended simplified implementation, not a
 real vehicle model.
 
-The files `experiment_results/summary.csv` and `summary.png` were regenerated after
-these corrections with budget 100 and seeds 0–9. Original outputs are preserved in
-`experiment_results/before_environment_fixes/`. Coverage still includes safe cells;
-those saved runs used local mutation search, not the new CMA-ES baseline. Failure labels
-also changed, so old and new coverage counts are not directly comparable. Search
-archive guidance and archive definitions remain pending work. See the root README
-for CMA-ES setup, objective, budget handling, and a separate experiment command.
+The archive stores failures only. Severity bins are 5 m/s of impact speed (4 bins),
+0.5 m of separation shortfall (4), and 0.1 s of TTC shortfall (3), each split by
+friction and sensor region. In 20,000 random scenarios 34 of the 44 cells occurred;
+about 35% of scenarios failed, and none failed on a dry road with ideal sensors in
+the tests.
+
+Results in `experiment_results/` other than `foundation_fixes/` predate the
+controller, TTC, scenario-space and archive changes and are kept as history; their
+counts are not comparable. Archive guidance of CMA-ES remains pending work, and one
+noise seed is still reused for a whole run. See the root README for CMA-ES details.

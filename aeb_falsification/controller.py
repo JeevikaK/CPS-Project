@@ -20,16 +20,28 @@ def controller_step(
     ego_speed: float,
     pedestrian_speed: float,
     config: ControllerConfig,
+    previous_mode: ControllerMode = ControllerMode.CRUISING,
 ) -> tuple[float, ControllerMode]:
-    """Return an acceleration command and the current hybrid controller mode."""
+    """Return an acceleration command and the current hybrid controller mode.
+
+    Braking is latched: once engaged it holds until the vehicle is no longer
+    closing and the gap has reopened to ``resume_distance``. Emergency braking
+    never relaxes to normal braking while still closing.
+    """
     distance = max(0.0, float(measured_distance))
     speed = max(0.0, float(ego_speed))
     ttc = compute_ttc(distance, speed, pedestrian_speed)
 
-    if distance <= config.minimum_separation or ttc <= config.emergency_ttc:
+    closing = speed > pedestrian_speed
+    emergency_latched = previous_mode == ControllerMode.EMERGENCY_BRAKING and closing
+    braking_latched = previous_mode != ControllerMode.CRUISING and (
+        closing or distance < config.resume_distance
+    )
+
+    if distance <= config.minimum_separation or ttc <= config.emergency_ttc or emergency_latched:
         return config.emergency_braking * config.friction_factor, ControllerMode.EMERGENCY_BRAKING
 
-    if ttc <= config.warning_ttc:
+    if ttc <= config.warning_ttc or braking_latched:
         return config.normal_braking * config.friction_factor, ControllerMode.WARNING
 
     speed_error = config.target_speed - speed

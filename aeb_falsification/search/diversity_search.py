@@ -36,9 +36,11 @@ def diversity_aware_search(
     current = random_vector(rng)
     current_scenario = vector_to_scenario(current, seed=seed)
     current_result = simulate(current_scenario)
-    _, is_new = archive.record(current_result, current_scenario)
+    archive.record(current_result, current_scenario)
     records.append(SearchRecord(0, current_scenario, current_result))
-    current_score = current_result.search_score - novelty_weight * float(is_new)
+    # The novelty bonus applies to a proposal once; it is not kept in the
+    # current score, otherwise known-cell proposals could never be accepted.
+    current_score = current_result.search_score
 
     scales = (BOUNDS[:, 1] - BOUNDS[:, 0]) * 0.15
     repeated_cells = 0
@@ -67,7 +69,7 @@ def diversity_aware_search(
         if proposal_score < current_score:
             current = proposal
             current_result = proposal_result
-            current_score = proposal_score
+            current_score = proposal_result.search_score
 
     best = min(records, key=lambda record: record.result.search_score)
     return SearchResult(

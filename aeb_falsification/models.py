@@ -39,7 +39,11 @@ class SimulationConfig:
     target_speed: float = 15.0
     warning_ttc: float = 3.0
     emergency_ttc: float = 1.5
+    # Safety limit; lower than the controller's trigger, so that correct
+    # emergency braking at the trigger is not itself a violation.
+    minimum_ttc: float = 1.0
     minimum_separation: float = 2.0
+    resume_distance: float = 10.0
     collision_distance: float = 0.0
     maximum_acceleration: float = 2.0
     normal_braking: float = -4.0
@@ -56,6 +60,7 @@ class ControllerConfig:
     warning_ttc: float = 3.0
     emergency_ttc: float = 1.5
     minimum_separation: float = 2.0
+    resume_distance: float = 10.0
     maximum_acceleration: float = 2.0
     normal_braking: float = -4.0
     emergency_braking: float = -8.0

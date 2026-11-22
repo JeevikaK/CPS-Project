@@ -2,6 +2,14 @@
 
 This repository contains a dependency-light prototype for testing an autonomous emergency braking (AEB) system. It compares random testing, robustness-guided search, and diversity-aware falsification using a failure archive.
 
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
 ## Run
 
 From the repository root:
@@ -13,4 +21,35 @@ python3 -m aeb_falsification.diversity_demo
 python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
 ```
 
-The current implementation uses a deterministic one-dimensional simulator. CARLA integration will be added through the same simulation/result interface.
+The current scope uses a reproducible one-dimensional simulator; CARLA is not required. See `aeb_falsification/README.md` for model assumptions, safety definitions, and validation.
+
+The saved experiment results were rerun after the environment corrections with 100 simulations per method and seeds 0–9. Previous results are preserved in `experiment_results/before_environment_fixes/`.
+
+
+## CMA-ES baseline
+
+`robustness_guided_search` now uses pycma 4.6.0 with normalized [0, 1]
+coordinates, built-in bounded sampling, and initial step size 0.2. It evaluates
+exactly the requested simulation budget, including a final partial population.
+Complete populations update the mean, covariance, and step size; if the optimizer
+stops early, it restarts within the remaining budget. Seeds use a local NumPy
+generator, including seed 0, without changing global random state.
+
+The objective is unchanged: minimize aggregate safety robustness for non-collisions
+and `-10 - impact_speed` for collisions. This is a severity-aware objective, not
+formal robustness alone. All existing methods use that score. The diversity
+method still uses its original local/global proposal mechanism; it is not yet
+CMA-ES with archive guidance, so comparisons do not isolate archive effects.
+
+The saved top-level experiment results use the previous local-search baseline;
+they do not measure this CMA-ES implementation. Write new runs to a separate
+folder, for example:
+
+```bash
+MPLBACKEND=Agg python -m aeb_falsification.experiment_runner --budget 100 --seeds 10 --output-dir experiment_results/cma_es
+```
+
+Implementation follows the [pycma ask/tell interface](https://cma-es.github.io/apidocs-pycma/cma.evolution_strategy.CMAEvolutionStrategy.html).
+
+
+The corrected 100-budget, 10-seed comparison is in `experiment_results/cma_es/`. Coverage excludes safe outcomes, impact speed is in km/h, and plot dots show individual runs. `settings.json` documents settings and metric definitions. Earlier top-level results remain historical.

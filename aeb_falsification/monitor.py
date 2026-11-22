@@ -19,7 +19,11 @@ def safety_metrics(trace: Trace, config: SimulationConfig) -> SafetyMetrics:
         if finite_ttc.size
         else inf
     )
-    overall = min(distance_robustness, separation_robustness, ttc_robustness)
+    overall = min(
+        distance_robustness / config.distance_scale,
+        separation_robustness / config.distance_scale,
+        ttc_robustness / config.ttc_scale,
+    )
     return SafetyMetrics(
         distance_robustness=distance_robustness,
         separation_robustness=separation_robustness,
@@ -37,7 +41,7 @@ def classify_failure(
     sensor_delay: float,
     sensor_noise_std: float,
 ) -> tuple[str | None, float]:
-    """Classify a trace using the deterministic priority from the project plan."""
+    """Classify observed outcomes, without inferring causes from conditions."""
     min_distance = float(np.min(trace.true_distance))
     finite_ttc = trace.ttc[np.isfinite(trace.ttc)]
     min_ttc = float(np.min(finite_ttc)) if finite_ttc.size else inf
@@ -48,25 +52,17 @@ def classify_failure(
     if trace.collision:
         return "collision", float(severity)
 
-    emergency_indices = np.flatnonzero(
-        trace.controller_mode == "emergency_braking"
-    )
-    if min_ttc <= config.emergency_ttc and emergency_indices.size == 0:
-        return "late_braking", float(severity)
-
-    if (
-        metrics.separation_robustness < 0.0
-        and road_friction < 0.99
-    ):
-        return "low_friction_failure", float(severity)
-
-    if (
-        metrics.separation_robustness < 0.0
-        and (sensor_delay > 0.0 or sensor_noise_std > 0.0)
-    ):
-        return "sensor_delay_failure", float(severity)
-
     if metrics.separation_robustness < 0.0:
-        return "near_miss", float(severity)
-
+        return "unsafe_separation", float(severity)
+    if metrics.ttc_robustness < 0.0:
+        return "unsafe_ttc", float(severity)
     return None, 0.0
+
+
+def violated_properties(trace: Trace, metrics: SafetyMetrics) -> tuple[str, ...]:
+    """Contact violates strict collision avoidance; other boundaries are safe."""
+    return tuple(name for name, failed in (
+        ("collision_avoidance", trace.collision or metrics.distance_robustness <= 0.0),
+        ("minimum_separation", metrics.separation_robustness < 0.0),
+        ("time_to_collision", metrics.ttc_robustness < 0.0),
+    ) if failed)

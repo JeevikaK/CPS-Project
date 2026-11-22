@@ -26,7 +26,9 @@ The first two search baselines use the same simulator interface and budget:
 python3 -m aeb_falsification.search_demo
 ```
 
-The diversity-aware search and archive can be run with:
+The diversity-aware search starts with 10 random scenarios. After that, 20% of proposals
+are random and the rest mutate the most severe failure of a uniformly chosen archive
+category. It can be run with:
 
 ```bash
 python3 -m aeb_falsification.diversity_demo
@@ -108,7 +110,7 @@ TTC shortfall and must not be interpreted as physical impact severity.
 ## Validation
 
 Run `MPLBACKEND=Agg python3 -m unittest discover -s tests -v`.
-The suite contains 42 tests, including analytic stopping distance, analytic contact
+The suite contains 48 tests, including analytic stopping distance, analytic contact
 speed at three time steps, a known safe encounter, adverse friction and delay,
 TTC-only violations, threshold equality, and zero-noise comparisons at 0.05 and
 0.025 s. These checks validate the intended simplified implementation, not a
@@ -120,7 +122,7 @@ friction and sensor region. In 20,000 random scenarios 34 of the 44 cells occurr
 about 35% of scenarios failed, and none failed on a dry road with ideal sensors in
 the tests.
 
-Results in `experiment_results/` other than `foundation_fixes/` predate the
+Results in `experiment_results/` other than `foundation_fixes/` and `archive_guided/` predate the
 controller, TTC, scenario-space and archive changes and are kept as history; their
 counts are not comparable. Archive guidance of CMA-ES remains pending work, and one
 noise seed is still reused for a whole run. See the root README for CMA-ES details.

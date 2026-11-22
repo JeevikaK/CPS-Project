@@ -1,4 +1,4 @@
-"""Diversity-aware falsification using the failure archive."""
+"""Diversity-aware falsification guided by the failure archive."""
 
 from __future__ import annotations
 
@@ -19,57 +19,49 @@ from .common import (
 def diversity_aware_search(
     budget: int = 100,
     seed: int = 0,
-    novelty_weight: float = 15.0,
-    exploration_probability: float = 0.65,
+    exploration_probability: float = 0.2,
+    mutation_std: float = 0.2,
+    initial_random: int = 10,
 ) -> SearchResult:
-    """Search for severe failures while rewarding new archive cells."""
+    """Mutate archived failures to reach new failure categories.
+
+    After ``initial_random`` uniform samples, each proposal perturbs the most
+    severe known failure of a uniformly chosen category, or is a fresh uniform
+    sample with ``exploration_probability``. Choosing among categories, rather
+    than following one current point, keeps the search from settling on a
+    single failure. ``mutation_std`` is a fraction of each parameter's range.
+    """
     if budget <= 0:
         raise ValueError("budget must be positive")
-    if novelty_weight < 0.0:
-        raise ValueError("novelty_weight must be non-negative")
     if not 0.0 <= exploration_probability <= 1.0:
         raise ValueError("exploration_probability must be between 0 and 1")
+    if mutation_std <= 0.0:
+        raise ValueError("mutation_std must be positive")
+    if initial_random < 0:
+        raise ValueError("initial_random must be non-negative")
 
     rng = np.random.default_rng(seed)
     archive = FailureArchive()
     records: list[SearchRecord] = []
-    current = random_vector(rng)
-    current_scenario = vector_to_scenario(current, seed=seed)
-    current_result = simulate(current_scenario)
-    archive.record(current_result, current_scenario)
-    records.append(SearchRecord(0, current_scenario, current_result))
-    # The novelty bonus applies to a proposal once; it is not kept in the
-    # current score, otherwise known-cell proposals could never be accepted.
-    current_score = current_result.search_score
+    # Search coordinates of the most severe failure in each category.
+    elites: dict = {}
+    scales = (BOUNDS[:, 1] - BOUNDS[:, 0]) * mutation_std
 
-    scales = (BOUNDS[:, 1] - BOUNDS[:, 0]) * 0.15
-    repeated_cells = 0
-    for evaluation in range(1, budget):
-        progress = evaluation / max(1, budget - 1)
-        adaptive_probability = min(
-            0.95,
-            exploration_probability + 0.10 * min(repeated_cells, 3),
-        )
-        if rng.random() < adaptive_probability:
-            # Periodic global exploration prevents the archive from becoming
-            # a record of only the neighborhood around the first collision.
-            proposal = random_vector(rng)
+    for evaluation in range(budget):
+        if evaluation < initial_random or not elites or rng.random() < exploration_probability:
+            vector = random_vector(rng)
         else:
-            proposal = clip_vector(current + rng.normal(0.0, scales * (1.0 - 0.8 * progress)))
-        proposal_scenario = vector_to_scenario(proposal, seed=seed)
-        proposal_result = simulate(proposal_scenario)
-        proposal_signature, proposal_is_new = archive.record(proposal_result, proposal_scenario)
-        if not proposal_is_new:
-            repeated_cells += 1
-        else:
-            repeated_cells = 0
-        proposal_score = proposal_result.search_score - novelty_weight * float(proposal_is_new)
-        records.append(SearchRecord(evaluation, proposal_scenario, proposal_result))
-
-        if proposal_score < current_score:
-            current = proposal
-            current_result = proposal_result
-            current_score = proposal_result.search_score
+            parents = list(elites.values())
+            _, parent = parents[rng.integers(len(parents))]
+            vector = clip_vector(parent + rng.normal(0.0, scales))
+        scenario = vector_to_scenario(vector, seed=seed)
+        result = simulate(scenario)
+        signature, _ = archive.record(result, scenario)
+        records.append(SearchRecord(evaluation, scenario, result))
+        if result.failure_type is not None and (
+            signature not in elites or result.search_score < elites[signature][0]
+        ):
+            elites[signature] = (result.search_score, vector)
 
     best = min(records, key=lambda record: record.result.search_score)
     return SearchResult(

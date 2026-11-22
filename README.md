@@ -23,7 +23,7 @@ python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
 
 The current scope uses a reproducible one-dimensional simulator; CARLA is not required. See `aeb_falsification/README.md` for model assumptions, safety definitions, and validation.
 
-The latest results are in `experiment_results/foundation_fixes/` (preliminary). Runs go to
+The latest results are in `experiment_results/archive_guided/` (preliminary). Runs go to
 `experiment_results/latest/` (git-ignored) unless `--output-dir` is given. Saved failures can be
 checked with `python3 -m aeb_falsification.replay <folder>/failures.json`.
 
@@ -42,15 +42,15 @@ generator, including seed 0, without changing global random state.
 The objective is unchanged: minimize aggregate safety robustness for non-collisions
 and `-10 - impact_speed` for collisions. This is a severity-aware objective, not
 formal robustness alone. All existing methods use that score. The diversity
-method still uses its original local/global proposal mechanism; it is not yet
-CMA-ES with archive guidance, so comparisons do not isolate archive effects.
+method mutates archived failures; it is not CMA-ES with archive guidance, so
+comparisons do not isolate archive effects.
 
 The saved top-level experiment results use the previous local-search baseline;
 they do not measure this CMA-ES implementation. Write new runs to a separate
 folder, for example:
 
 ```bash
-MPLBACKEND=Agg python -m aeb_falsification.experiment_runner --budget 100 --seeds 10 --output-dir experiment_results/cma_es
+MPLBACKEND=Agg python -m aeb_falsification.experiment_runner --budget 100 --seeds 10 --output-dir experiment_results/my_run
 ```
 
 Implementation follows the [pycma ask/tell interface](https://cma-es.github.io/apidocs-pycma/cma.evolution_strategy.CMAEvolutionStrategy.html).

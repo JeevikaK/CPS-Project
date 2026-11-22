@@ -1,5 +1,7 @@
 # Preliminary comparison after the foundation fixes
 
+> Historical: the diversity-aware search was later replaced. See `../archive_guided/`.
+
 100 simulations per method × seeds 0–9. **Not final:** settings are not frozen and
 these seeds were used during development. Final runs need fresh seeds.
 

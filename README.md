@@ -19,6 +19,7 @@ python3 -m aeb_falsification --scenario aeb_falsification/example_scenario.json
 python3 -m unittest discover -s tests -v
 python3 -m aeb_falsification.diversity_demo
 python3 -m aeb_falsification.experiment_runner --budget 100 --seeds 10
+python3 -m aeb_falsification.analysis experiment_results/archive_guided --output-dir experiment_results/latest/analysis
 ```
 
 The current scope uses a reproducible one-dimensional simulator; CARLA is not required. See `aeb_falsification/README.md` for model assumptions, safety definitions, and validation.
@@ -26,6 +27,25 @@ The current scope uses a reproducible one-dimensional simulator; CARLA is not re
 The latest results are in `experiment_results/archive_guided/` (preliminary). Runs go to
 `experiment_results/latest/` (git-ignored) unless `--output-dir` is given. Saved failures can be
 checked with `python3 -m aeb_falsification.replay <folder>/failures.json`.
+
+## Statistics and confidence intervals
+
+`aeb_falsification.analysis` turns one or more result folders (for example one per
+budget) into report-ready statistics and plots:
+
+```bash
+python3 -m aeb_falsification.analysis experiment_results/archive_guided \
+    --output-dir experiment_results/latest/analysis
+```
+
+It writes `summary_stats.csv` (mean, SD, median, 95% percentile-bootstrap CI per
+budget/method/metric), `paired_tests.csv` (diversity-aware minus each other method,
+paired by seed: mean difference with bootstrap CI, two-sided Wilcoxon signed-rank,
+Holm-adjusted p-values over all tests, rank-biserial effect size), `results_table.md`,
+`metrics_ci.png`, `coverage_curve_ci.png` and `analysis_settings.json`. Runs with no
+failure count as budget + 1 simulations to first failure. Use `--reference` to change
+the comparison method. Existing non-empty output folders are not overwritten unless
+`--overwrite` is given.
 
 The older top-level experiment results were rerun after the environment corrections with 100 simulations per method and seeds 0–9. Previous results are preserved in `experiment_results/before_environment_fixes/`.
 

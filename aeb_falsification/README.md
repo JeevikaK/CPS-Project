@@ -110,7 +110,7 @@ TTC shortfall and must not be interpreted as physical impact severity.
 ## Validation
 
 Run `MPLBACKEND=Agg python3 -m unittest discover -s tests -v`.
-The suite contains 48 tests, including analytic stopping distance, analytic contact
+The suite contains 67 tests, including analytic stopping distance, analytic contact
 speed at three time steps, a known safe encounter, adverse friction and delay,
 TTC-only violations, threshold equality, and zero-noise comparisons at 0.05 and
 0.025 s. These checks validate the intended simplified implementation, not a
@@ -124,5 +124,6 @@ the tests.
 
 Results in `experiment_results/` other than `foundation_fixes/` and `archive_guided/` predate the
 controller, TTC, scenario-space and archive changes and are kept as history; their
-counts are not comparable. Archive guidance of CMA-ES remains pending work, and one
-noise seed is still reused for a whole run. See the root README for CMA-ES details.
+counts are not comparable. Archive-guided CMA-ES, stall restarts, the archive
+ablation and the per-simulation noise seed are described in the root README and in
+`report/method.md`.

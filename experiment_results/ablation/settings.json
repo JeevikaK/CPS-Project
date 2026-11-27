@@ -1,0 +1,138 @@
+{
+ "budget_per_arm_per_seed": 100,
+ "seeds": [
+  6000,
+  6001,
+  6002,
+  6003,
+  6004,
+  6005,
+  6006,
+  6007,
+  6008,
+  6009,
+  6010,
+  6011,
+  6012,
+  6013,
+  6014,
+  6015,
+  6016,
+  6017,
+  6018,
+  6019,
+  6020,
+  6021,
+  6022,
+  6023,
+  6024,
+  6025,
+  6026,
+  6027,
+  6028,
+  6029
+ ],
+ "noise_modes": [
+  "per_evaluation",
+  "fixed"
+ ],
+ "reseeds_per_failure": 5,
+ "arms": {
+  "random": {
+   "label": "Random (reference)",
+   "options": null
+  },
+  "diversity_aware": {
+   "label": "Archive mutation search (reference)",
+   "options": null
+  },
+  "cma_no_restart": {
+   "label": "CMA-ES, no stall restarts",
+   "options": {
+    "stall_generations": null
+   }
+  },
+  "cma": {
+   "label": "CMA-ES (no archive)",
+   "options": {}
+  },
+  "cma_novelty": {
+   "label": "+ archive novelty fitness",
+   "options": {
+    "novelty_bonus": 30.0
+   }
+  },
+  "cma_archive_restarts": {
+   "label": "+ archive restarts",
+   "options": {
+    "archive_restarts": true
+   }
+  },
+  "archive_cma": {
+   "label": "+ both (archive-guided CMA-ES)",
+   "options": {
+    "novelty_bonus": 30.0,
+    "archive_restarts": true
+   }
+  }
+ },
+ "cma": {
+  "sigma0": 0.2,
+  "restart_sigma": 0.15,
+  "stall_generations": 4,
+  "stall_statistic": "generation median",
+  "stall_tolerance_relative": 0.001,
+  "min_step": 0.001,
+  "restart_exploration": 0.3,
+  "coordinates": "normalized [0, 1]"
+ },
+ "simulation": {
+  "dt": 0.05,
+  "horizon": 10.0,
+  "target_speed": 15.0,
+  "warning_ttc": 3.0,
+  "emergency_ttc": 1.5,
+  "minimum_ttc": 1.0,
+  "minimum_separation": 2.0,
+  "resume_distance": 10.0,
+  "collision_distance": 0.0,
+  "maximum_acceleration": 2.0,
+  "normal_braking": -4.0,
+  "emergency_braking": -8.0,
+  "maximum_sensor_delay": 0.5,
+  "distance_scale": 1.0,
+  "ttc_scale": 1.0
+ },
+ "bounds": {
+  "ego_speed": [
+   8.0,
+   20.0
+  ],
+  "pedestrian_distance": [
+   8.0,
+   80.0
+  ],
+  "pedestrian_speed": [
+   0.0,
+   2.0
+  ],
+  "road_friction": [
+   0.35,
+   1.0
+  ],
+  "sensor_delay": [
+   0.0,
+   0.5
+  ],
+  "sensor_noise_std": [
+   0.0,
+   1.0
+  ]
+ },
+ "versions": {
+  "cma": "4.6.0",
+  "numpy": "2.4.2",
+  "matplotlib": "3.11.2"
+ },
+ "statistics": "paired vs cma on same seeds; mean difference, 95% bootstrap CI, two-sided sign-flip permutation p (20000 resamples), Holm per metric and noise mode"
+}

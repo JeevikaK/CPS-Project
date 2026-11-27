@@ -10,7 +10,9 @@ from .common import (
     BOUNDS,
     SearchRecord,
     SearchResult,
+    DEFAULT_NOISE_MODE,
     clip_vector,
+    noise_seed,
     random_vector,
     vector_to_scenario,
 )
@@ -22,6 +24,8 @@ def diversity_aware_search(
     exploration_probability: float = 0.2,
     mutation_std: float = 0.2,
     initial_random: int = 10,
+    *,
+    noise: str = DEFAULT_NOISE_MODE,
 ) -> SearchResult:
     """Mutate archived failures to reach new failure categories.
 
@@ -40,6 +44,7 @@ def diversity_aware_search(
     if initial_random < 0:
         raise ValueError("initial_random must be non-negative")
 
+    noise_seed(seed, 0, noise)
     rng = np.random.default_rng(seed)
     archive = FailureArchive()
     records: list[SearchRecord] = []
@@ -54,7 +59,7 @@ def diversity_aware_search(
             parents = list(elites.values())
             _, parent = parents[rng.integers(len(parents))]
             vector = clip_vector(parent + rng.normal(0.0, scales))
-        scenario = vector_to_scenario(vector, seed=seed)
+        scenario = vector_to_scenario(vector, seed=noise_seed(seed, evaluation, noise))
         result = simulate(scenario)
         signature, _ = archive.record(result, scenario)
         records.append(SearchRecord(evaluation, scenario, result))

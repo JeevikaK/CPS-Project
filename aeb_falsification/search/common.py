@@ -46,6 +46,8 @@ class SearchResult:
     best_record: SearchRecord
     archive_coverage: int = 0
     archive_signatures: tuple = ()
+    # Optimizer diagnostics (e.g. CMA-ES restarts); None for other methods.
+    optimizer: object = None
 
     @property
     def evaluations(self) -> int:
@@ -74,6 +76,25 @@ def vector_to_scenario(vector: np.ndarray, seed: int) -> Scenario:
         sensor_noise_std=float(values[5]),
         seed=int(seed),
     )
+
+
+NOISE_MODES = ("per_evaluation", "fixed")
+DEFAULT_NOISE_MODE = "per_evaluation"
+
+
+def noise_seed(run_seed: int, evaluation: int, mode: str = DEFAULT_NOISE_MODE) -> int:
+    """Sensor-noise seed of one evaluation.
+
+    ``"per_evaluation"`` draws a fresh, reproducible noise realization for every
+    simulation (derived from the run seed and evaluation index), so failures are
+    not tuned to one fixed noise sequence. ``"fixed"`` reuses the run seed for
+    every simulation, the behaviour before this option existed.
+    """
+    if mode == "fixed":
+        return int(run_seed)
+    if mode == "per_evaluation":
+        return int(np.random.SeedSequence([int(run_seed), int(evaluation)]).generate_state(1)[0])
+    raise ValueError(f"noise mode must be one of {NOISE_MODES}")
 
 
 def random_vector(rng: np.random.Generator) -> np.ndarray:

@@ -15,7 +15,7 @@ import numpy as np
 from .archive import FailureArchive
 from .models import SimulationConfig
 from .search import diversity_aware_search, random_search, robustness_guided_search
-from .search.common import BOUNDS, PARAMETER_NAMES
+from .search.common import BOUNDS, DEFAULT_NOISE_MODE, PARAMETER_NAMES
 
 DEFAULT_OUTPUT_DIR = Path("experiment_results/latest")
 
@@ -130,6 +130,8 @@ def run_experiment(
         "seeds": list(seeds),
         "simulation": simulation,
         "bounds": dict(zip(PARAMETER_NAMES, BOUNDS.tolist())),
+        "noise_seed": DEFAULT_NOISE_MODE,
+        "cma_stall_restart_generations": 4,
         "versions": {name: version(name) for name in ("cma", "numpy", "matplotlib")},
     }, output_path / "settings.json")
     return rows

@@ -1,0 +1,65 @@
+{
+ "budget_per_method_per_seed": 100,
+ "seeds": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "simulation": {
+  "dt": 0.05,
+  "horizon": 10.0,
+  "target_speed": 15.0,
+  "warning_ttc": 3.0,
+  "emergency_ttc": 1.5,
+  "minimum_ttc": 1.0,
+  "minimum_separation": 2.0,
+  "resume_distance": 10.0,
+  "collision_distance": 0.0,
+  "maximum_acceleration": 2.0,
+  "normal_braking": -4.0,
+  "emergency_braking": -8.0,
+  "maximum_sensor_delay": 0.5,
+  "distance_scale": 1.0,
+  "ttc_scale": 1.0
+ },
+ "bounds": {
+  "ego_speed": [
+   8.0,
+   20.0
+  ],
+  "pedestrian_distance": [
+   8.0,
+   80.0
+  ],
+  "pedestrian_speed": [
+   0.0,
+   2.0
+  ],
+  "road_friction": [
+   0.35,
+   1.0
+  ],
+  "sensor_delay": [
+   0.0,
+   0.5
+  ],
+  "sensor_noise_std": [
+   0.0,
+   1.0
+  ]
+ },
+ "noise_seed": "per_evaluation",
+ "cma_stall_restart_generations": 4,
+ "versions": {
+  "cma": "4.6.0",
+  "numpy": "2.4.2",
+  "matplotlib": "3.11.2"
+ }
+}

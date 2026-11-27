@@ -38,9 +38,11 @@ class EnvironmentValidationTests(unittest.TestCase):
             self.assertIn('collision_avoidance', result.violated_properties)
 
     def test_safe_stop_and_known_adverse_conditions(self):
-        safe = simulate(self.scenario())
-        slippery = simulate(self.scenario(road_friction=.35))
-        delayed = simulate(self.scenario(sensor_delay=.5))
+        # Never resume, so only the first approach is compared.
+        config = SimulationConfig(resume_distance=1000)
+        safe = simulate(self.scenario(pedestrian_distance=40), config)
+        slippery = simulate(self.scenario(pedestrian_distance=40, road_friction=.35), config)
+        delayed = simulate(self.scenario(pedestrian_distance=40, sensor_delay=.5), config)
         known_safe = simulate(self.scenario(ego_speed=8, pedestrian_distance=60, pedestrian_speed=2))
         self.assertIsNone(known_safe.failure_type)
         self.assertFalse(known_safe.collision)
@@ -62,13 +64,13 @@ class EnvironmentValidationTests(unittest.TestCase):
         result = simulate(self.scenario())
         trace = result.trace
         trace.true_distance[:] = 3
-        trace.ttc[:] = 1
+        trace.ttc[:] = .9
         metrics = safety_metrics(trace, SimulationConfig())
         kind, _ = classify_failure(trace, metrics, SimulationConfig(), road_friction=.35,
                                   sensor_delay=.5, sensor_noise_std=1)
         self.assertEqual(kind, 'unsafe_ttc')
         trace.true_distance[:] = 2
-        trace.ttc[:] = 1.5
+        trace.ttc[:] = 1
         metrics = safety_metrics(trace, SimulationConfig())
         kind, _ = classify_failure(trace, metrics, SimulationConfig(), road_friction=1,
                                   sensor_delay=0, sensor_noise_std=0)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..models import Scenario, SimulationResult
+from ..simulator import minimum_avoidable_distance
 
 
 PARAMETER_NAMES = (
@@ -21,7 +22,7 @@ PARAMETER_NAMES = (
 BOUNDS = np.asarray(
     [
         (8.0, 20.0),
-        (8.0, 40.0),
+        (8.0, 80.0),
         (0.0, 2.0),
         (0.35, 1.0),
         (0.0, 0.50),
@@ -45,6 +46,8 @@ class SearchResult:
     best_record: SearchRecord
     archive_coverage: int = 0
     archive_signatures: tuple = ()
+    # Optimizer diagnostics (e.g. CMA-ES restarts); None for other methods.
+    optimizer: object = None
 
     @property
     def evaluations(self) -> int:
@@ -52,18 +55,46 @@ class SearchResult:
 
 
 def vector_to_scenario(vector: np.ndarray, seed: int) -> Scenario:
+    """Map search coordinates to an avoidable scenario.
+
+    The distance coordinate is rescaled from its full bounds onto the part a
+    perfect controller could handle, so every method searches the same
+    avoidable scenarios without rejected samples or boundary pile-up.
+    """
     values = np.asarray(vector, dtype=float)
     if values.shape != (len(PARAMETER_NAMES),):
         raise ValueError("scenario vector must contain six parameters")
+    low, high = BOUNDS[1]
+    avoidable = max(low, minimum_avoidable_distance(values[0], values[2], values[3]))
+    distance = avoidable + (values[1] - low) / (high - low) * (high - avoidable)
     return Scenario(
         ego_speed=float(values[0]),
-        pedestrian_distance=float(values[1]),
+        pedestrian_distance=float(distance),
         pedestrian_speed=float(values[2]),
         road_friction=float(values[3]),
         sensor_delay=float(values[4]),
         sensor_noise_std=float(values[5]),
         seed=int(seed),
     )
+
+
+NOISE_MODES = ("per_evaluation", "fixed")
+DEFAULT_NOISE_MODE = "per_evaluation"
+
+
+def noise_seed(run_seed: int, evaluation: int, mode: str = DEFAULT_NOISE_MODE) -> int:
+    """Sensor-noise seed of one evaluation.
+
+    ``"per_evaluation"`` draws a fresh, reproducible noise realization for every
+    simulation (derived from the run seed and evaluation index), so failures are
+    not tuned to one fixed noise sequence. ``"fixed"`` reuses the run seed for
+    every simulation, the behaviour before this option existed.
+    """
+    if mode == "fixed":
+        return int(run_seed)
+    if mode == "per_evaluation":
+        return int(np.random.SeedSequence([int(run_seed), int(evaluation)]).generate_state(1)[0])
+    raise ValueError(f"noise mode must be one of {NOISE_MODES}")
 
 
 def random_vector(rng: np.random.Generator) -> np.ndarray:

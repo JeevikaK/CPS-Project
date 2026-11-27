@@ -19,6 +19,7 @@ class FailureSignature:
 class ArchiveEntry:
     signature: FailureSignature
     result: SimulationResult
+    scenario: Scenario | None = None
 
 
 def make_failure_signature(
@@ -28,13 +29,16 @@ def make_failure_signature(
     """Map a result and its operating conditions to an archive cell."""
     failure_type = result.failure_type or "safe"
     if failure_type == "collision":
-        # Collision cells distinguish low-, medium-, and high-speed impact.
-        severity_bin = min(4, int(result.impact_speed // 5.0))
-    elif failure_type == "safe":
-        severity_bin = 0
+        # Impact speed in 5 m/s steps; ego speed never exceeds 20 m/s.
+        severity_bin = min(3, int(result.impact_speed // 5.0))
+    elif failure_type == "unsafe_separation":
+        # Shortfall below the 2 m minimum in 0.5 m steps.
+        severity_bin = min(3, int(-result.metrics.separation_robustness // 0.5))
+    elif failure_type == "unsafe_ttc":
+        # Shortfall in 0.1 s steps; larger shortfalls also break separation.
+        severity_bin = min(2, int(-result.metrics.ttc_robustness // 0.1))
     else:
-        # Non-collision violations are binned by separation shortfall.
-        severity_bin = min(4, int(max(0.0, result.severity) // 0.5))
+        severity_bin = 0
     if scenario is None:
         friction_bin = "unknown"
         sensor_bin = "unknown"
@@ -59,11 +63,14 @@ class FailureArchive:
         result: SimulationResult,
         scenario: Scenario | None = None,
     ) -> tuple[FailureSignature, bool]:
+        """Store a failure; safe outcomes are never stored or novel."""
         signature = make_failure_signature(result, scenario)
+        if result.failure_type is None:
+            return signature, False
         is_new = signature not in self._entries
         current = self._entries.get(signature)
         if current is None or result.search_score < current.result.search_score:
-            self._entries[signature] = ArchiveEntry(signature, result)
+            self._entries[signature] = ArchiveEntry(signature, result, scenario)
         return signature, is_new
 
     @property

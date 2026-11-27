@@ -10,6 +10,7 @@ import numpy as np
 from .controller import compute_ttc, controller_step
 from .models import (
     ControllerConfig,
+    ControllerMode,
     Scenario,
     SimulationConfig,
     SimulationResult,
@@ -20,6 +21,29 @@ from .monitor import classify_failure, safety_metrics, violated_properties
 
 def _friction_factor(road_friction: float) -> float:
     return min(road_friction, 1.0)
+
+
+def minimum_avoidable_distance(
+    ego_speed: float,
+    pedestrian_speed: float,
+    road_friction: float,
+    config: SimulationConfig | None = None,
+) -> float:
+    """Smallest initial gap at which ideal full braking from t=0 is fully safe.
+
+    Ideal means perfect sensing and no reaction time. Below this gap no
+    controller can satisfy the separation and TTC requirements, so a violation
+    there says nothing about the controller under test.
+    """
+    config = config or SimulationConfig()
+    closing = ego_speed - pedestrian_speed
+    if closing <= 0.0:
+        return config.minimum_separation
+    deceleration = -config.emergency_braking * _friction_factor(road_friction)
+    # With final gap g, TTC while braking is g/c + c/(2a); bound it for c <= closing.
+    worst = min(closing, deceleration * config.minimum_ttc)
+    ttc_gap = config.minimum_ttc * worst - worst ** 2 / (2.0 * deceleration)
+    return closing ** 2 / (2.0 * deceleration) + max(config.minimum_separation, ttc_gap)
 
 
 def simulate(
@@ -37,7 +61,7 @@ def simulate(
         raise ValueError("robustness reference scales must be positive")
     if not (config.emergency_braking <= config.normal_braking < 0):
         raise ValueError("emergency braking must be at least as strong as normal braking")
-    if not (0 <= config.emergency_ttc <= config.warning_ttc):
+    if not (0 <= config.minimum_ttc <= config.emergency_ttc <= config.warning_ttc):
         raise ValueError("invalid TTC thresholds")
     if not (0 <= config.collision_distance < config.minimum_separation):
         raise ValueError("invalid distance thresholds")
@@ -72,11 +96,13 @@ def simulate(
     friction = _friction_factor(scenario.road_friction)
     collision_detected = False
     impact_speed = 0.0
+    mode = ControllerMode.CRUISING
     controller_config = ControllerConfig(
         target_speed=config.target_speed,
         warning_ttc=config.warning_ttc,
         emergency_ttc=config.emergency_ttc,
         minimum_separation=config.minimum_separation,
+        resume_distance=config.resume_distance,
         maximum_acceleration=config.maximum_acceleration,
         normal_braking=config.normal_braking,
         emergency_braking=config.emergency_braking,
@@ -98,6 +124,7 @@ def simulate(
             ego_speed[i],
             scenario.pedestrian_speed,
             controller_config,
+            mode,
         )
         brake_command[i] = command
         controller_mode[i] = mode.value

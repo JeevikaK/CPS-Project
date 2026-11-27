@@ -12,7 +12,7 @@ class CmaSearchTests(unittest.TestCase):
     def test_exact_simulator_calls_and_bounds(self):
         for budget in (1, 8, 9, 10, 19, 100):
             with self.subTest(budget=budget), patch(
-                'aeb_falsification.search.robustness_search.simulate', wraps=simulate
+                'aeb_falsification.search.cma_es.simulate', wraps=simulate
             ) as simulator:
                 result = robustness_guided_search(budget, seed=0)
                 self.assertEqual(simulator.call_count, budget)

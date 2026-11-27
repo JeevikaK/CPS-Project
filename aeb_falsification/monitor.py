@@ -15,7 +15,7 @@ def safety_metrics(trace: Trace, config: SimulationConfig) -> SafetyMetrics:
     separation_robustness = float(np.min(trace.true_distance - config.minimum_separation))
     finite_ttc = trace.ttc[np.isfinite(trace.ttc)]
     ttc_robustness = (
-        float(np.min(finite_ttc - config.emergency_ttc))
+        float(np.min(finite_ttc - config.minimum_ttc))
         if finite_ttc.size
         else inf
     )
@@ -47,7 +47,7 @@ def classify_failure(
     min_ttc = float(np.min(finite_ttc)) if finite_ttc.size else inf
     severity = max(0.0, config.minimum_separation - min_distance)
     if np.isfinite(min_ttc):
-        severity += max(0.0, config.emergency_ttc - min_ttc) * 0.1
+        severity += max(0.0, config.minimum_ttc - min_ttc) * 0.1
 
     if trace.collision:
         return "collision", float(severity)
